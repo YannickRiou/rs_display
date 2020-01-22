@@ -7,8 +7,8 @@
 
 #include <visualization_msgs/Marker.h>
 
-#include "ontologenius/OntologiesManipulator.h"
-#include "ontologenius/OntologyManipulator.h"
+#include "ontoloGenius/utility/OntologiesManipulator.h"
+#include "ontoloGenius/utility/OntologyManipulator.h"
 
 #include "rs_display/PropertyData.h"
 #include "rs_display/IdManager.h"
@@ -27,6 +27,7 @@ public:
   visualization_msgs::Marker getMarkerName();
 
   std::string getName() { return name_; }
+  geometry_msgs::Pose getPose();
 
   void setName(const std::string name) { name_ = name; }
   void setTrackId(int id) { track_id_ = id; }

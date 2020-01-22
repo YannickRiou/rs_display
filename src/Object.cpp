@@ -71,6 +71,22 @@ visualization_msgs::Marker Object::getMarker()
   return marker;
 }
 
+geometry_msgs::Pose Object::getPose()
+{
+  geometry_msgs::Pose pose; 
+
+  pose.position.x = pose_[0];
+  pose.position.y = pose_[1];
+  pose.position.z = pose_[2];
+
+  pose.orientation.x = orientation_[0];
+  pose.orientation.y = orientation_[1];
+  pose.orientation.z = orientation_[2];
+  pose.orientation.w = orientation_[3];
+
+  return pose;
+}
+
 visualization_msgs::Marker Object::getMarkerName()
 {
   visualization_msgs::Marker marker;

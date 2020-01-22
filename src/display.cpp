@@ -8,6 +8,7 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <geometry_msgs/PointStamped.h>
+#include <geometry_msgs/Pose.h>
 #include <std_msgs/String.h>
 
 #include "rs_display/PropertyData.h"
@@ -45,6 +46,7 @@ rs::Object getObject(rs::PropertyData& obj)
 
 ros::Publisher* pub;
 ros::Publisher* click_pub;
+ros::Publisher* click_pose_pub;
 OntologyManipulator* onto_ = nullptr;
 std::mutex mut_;
 std::vector<rs::Object> objects_;
@@ -141,6 +143,8 @@ void Callback(const robosherlock_msgs::RSObjectDescriptions& msg)
 void clickCallback(const geometry_msgs::PointStamped& msg)
 {
   std::string name;
+  geometry_msgs::Pose obj_pose;
+
   float min_size = 100000;
 
   mut_.lock();
@@ -150,44 +154,41 @@ void clickCallback(const geometry_msgs::PointStamped& msg)
     if(dist < min_size)
     {
       name = obj.getName();
+      obj_pose = obj.getPose();
       min_size = dist;
     }
   }
   mut_.unlock();
 
+  // Publish name of clicked object
   std_msgs::String res_msg;
   res_msg.data = name;
   click_pub->publish(res_msg);
 
-  std::cout << "click on " << name << std::endl;
-}
+  // Publish pose of the clicked object
+  geometry_msgs::Pose pose;
+  pose.position.x = obj_pose.position.x; 
+  pose.position.y = obj_pose.position.y;
+  pose.position.z = obj_pose.position.z;
+  pose.orientation.x = obj_pose.orientation.x;
+  pose.orientation.y = obj_pose.orientation.y;
+  pose.orientation.z = obj_pose.orientation.z;
+  pose.orientation.w = obj_pose.orientation.w;
+  click_pose_pub->publish(pose);
 
-void tranparentCallback(const std_msgs::String& msg)
-{
-  mut_.lock();
-  for(auto& obj : objects_)
-  {
-    if(msg.data == obj.getName())
-    {
-      obj.setOpacity(0.5);
-      break;
-    }
-  }
-  mut_.unlock();
-}
+  std::cout << "***** Name of clicked object is [" << name << "]" << std::endl;
 
-void opaqueCallback(const std_msgs::String& msg)
-{
-  mut_.lock();
-  for(auto& obj : objects_)
-  {
-    if(msg.data == obj.getName())
-    {
-      obj.setOpacity(1.0);
-      break;
-    }
-  }
-  mut_.unlock();
+  std::cout << "***** Pose of clicked object is :" << std::endl;
+  std::cout << "--------- Position --------- " << pose.position.x << std::endl;
+  std::cout << "X :" << pose.position.x << std::endl;
+  std::cout << "Y :" << pose.position.y << std::endl;
+  std::cout << "Z :" << pose.position.z << std::endl;
+  std::cout << "--------- Orientation ---------" << std::endl;
+  std::cout << "X :" << pose.orientation.x << std::endl;
+  std::cout << "Y :" << pose.orientation.y << std::endl;
+  std::cout << "Z :" << pose.orientation.z << std::endl;
+  std::cout << "W :" << pose.orientation.w << std::endl;
+  std::cout << "---------------------" << std::endl;  
 }
 
 int main(int argc, char *argv[])
@@ -199,19 +200,25 @@ int main(int argc, char *argv[])
   ontos.add("robot");
   onto_ = ontos.get("robot");
 
-  ros::Subscriber sub = n.subscribe("RoboSherlock_gsarthou/result_advertiser", 1000, Callback);
+  // Generic subscribe to RoboSherlock_USER/result_advertiser
+  ros::Subscriber sub = n.subscribe(std::string("RoboSherlock_") + std::string(getenv("USER"))+"/result_advertiser", 1000, Callback);
+  
+  // Susbscribe to topic given by Rviz when "Publish Point" tool is used on an object
   ros::Subscriber click_sub = n.subscribe("/clicked_point", 1000, clickCallback);
 
-  ros::Subscriber transp_sub = n.subscribe("/set_transparent", 1000, tranparentCallback);
-  ros::Subscriber opaque_sub = n.subscribe("/set_opaque", 1000, opaqueCallback);
-
+  // Give Rviz marker to show the object as colored boxes
   ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
   pub = &marker_pub;
 
+  // Publish name of the clicked object in rviz to topic /clicked_object
   ros::Publisher c_pub = n.advertise<std_msgs::String>("clicked_object", 10);
   click_pub = &c_pub;
 
-  std::cout << "rs_display init" << std::endl;
+  // Publish pose of the clicked object in rviz to topic /clicked_object_pose
+  ros::Publisher c_pose_pub = n.advertise<geometry_msgs::Pose>("clicked_object_pose", 10);
+  click_pose_pub = &c_pose_pub;
+
+  std::cout << "**** RS Display Init Done" << std::endl;
 
   ros::spin();
 
