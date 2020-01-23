@@ -9,8 +9,12 @@ add_compile_options(-std=c++1z -Wall)
 find_package(catkin REQUIRED COMPONENTS
   robosherlock_msgs
   ontologenius
+  moveit_core
+  moveit_ros_planning
+  moveit_ros_planning_interface
   roscpp
   std_msgs
+  moveit_visual_tools
 )
 
 ###################################
@@ -36,6 +40,7 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}  
 )
 
 add_executable(display src/display.cpp src/Object.cpp src/DataReader.cpp)
