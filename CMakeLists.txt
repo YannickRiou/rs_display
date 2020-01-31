@@ -9,12 +9,8 @@ add_compile_options(-std=c++1z -Wall)
 find_package(catkin REQUIRED COMPONENTS
   robosherlock_msgs
   ontologenius
-  moveit_core
-  moveit_ros_planning
-  moveit_ros_planning_interface
   roscpp
   std_msgs
-  moveit_visual_tools
 )
 
 ###################################

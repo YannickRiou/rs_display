@@ -3,7 +3,6 @@
 #include <mutex>
 
 #include "ros/ros.h"
- #include <Eigen/Geometry>
 
 #include <robosherlock_msgs/RSObjectDescriptions.h>
 
@@ -16,12 +15,6 @@
 #include "rs_display/PropertyData.h"
 #include "rs_display/Object.h"
 #include "rs_display/DataReader.h"
-
-#include <moveit/move_group_interface/move_group_interface.h>
-#include <moveit/planning_scene_interface/planning_scene_interface.h>
-
-#include <moveit_msgs/AttachedCollisionObject.h>
-#include <moveit_msgs/CollisionObject.h>
 
 // Info on clicked object pose
 //#define DEBUG_PRINT
@@ -103,57 +96,7 @@ std::vector<rs::Object> merge(std::vector<rs::Object>& current, std::vector<rs::
   return std::move(res);
 }
 
-
-void addObjToCollisionList(rs::Object obj, moveit::planning_interface::PlanningSceneInterface& plan_scene,std::vector<moveit_msgs::CollisionObject>& collision_object_vector )
-{
-  visualization_msgs::Marker marker;
-  
-  marker = obj.getMarker();
-
- // Add table as a fixed collision object. 
-  moveit_msgs::CollisionObject collisionObj;
-  collisionObj.id = marker.text;
-  collisionObj.header.frame_id = "base_footprint";
-  
-  // Define a box to add to the world.
-  shape_msgs::SolidPrimitive collisionObj_primitive;
-  if(marker.type == visualization_msgs::Marker::CUBE)
-  {
-    collisionObj_primitive.type = collisionObj_primitive.BOX;
-  }
-  else
-  {
-    collisionObj_primitive.type = collisionObj_primitive.CYLINDER;  
-  }
-  
-  collisionObj_primitive.dimensions.resize(3);
-  collisionObj_primitive.dimensions[0] = marker.scale.x;
-  collisionObj_primitive.dimensions[1] = marker.scale.y;
-  collisionObj_primitive.dimensions[2] = marker.scale.z;
-
-  // Define a pose for the box (specified relative to frame_id)
-  geometry_msgs::Pose collisionObj_pose;
-  collisionObj_pose.position.x = marker.pose.position.x;
-  collisionObj_pose.position.y = marker.pose.position.y;
-  collisionObj_pose.position.z = marker.pose.position.z;
-
-  collisionObj_pose.orientation.x = marker.pose.orientation.x;
-  collisionObj_pose.orientation.y = marker.pose.orientation.y;
-  collisionObj_pose.orientation.z = marker.pose.orientation.z;
-
-  collisionObj.primitives.push_back(collisionObj_primitive);
-  collisionObj.primitive_poses.push_back(collisionObj_pose);
-  collisionObj.operation = collisionObj.ADD;
-
-  collision_object_vector.push_back(collisionObj);
-
-  // Now, let's add the collision object into the world
-  ROS_INFO_NAMED("tutorial", "Added an object into the world");
-  ros::Duration(0.2).sleep();
-  plan_scene.addCollisionObjects(collision_object_vector);
-}
-
-void Callback(const robosherlock_msgs::RSObjectDescriptionsConstPtr& msg, moveit::planning_interface::PlanningSceneInterface& plan_scene,std::vector<moveit_msgs::CollisionObject>& collision_object_vector )
+void Callback(const robosherlock_msgs::RSObjectDescriptionsConstPtr& msg)
 {
   rs::DataReader reader;
 
@@ -186,7 +129,6 @@ void Callback(const robosherlock_msgs::RSObjectDescriptionsConstPtr& msg, moveit
     obj.upadteInOntology(onto_);
     pub->publish(obj.getMarker());
     pub->publish(obj.getMarkerName());
-    addObjToCollisionList(obj,plan_scene,collision_object_vector);
   }
 
   mut_.lock();
@@ -273,44 +215,14 @@ int main(int argc, char *argv[])
   ontos.add("robot"); 
   onto_ = ontos.get("robot");
 
-  // Add table as a fixed collision object. 
-  moveit_msgs::CollisionObject mainTable;
-  mainTable.id = "tableLaas";
-  mainTable.header.frame_id = "base_footprint";
-  
-  // Define a box to add to the world.
-  shape_msgs::SolidPrimitive primitive;
-  primitive.type = primitive.BOX;
-  primitive.dimensions.resize(3);
-  primitive.dimensions[0] = 0.85;
-  primitive.dimensions[1] = 1.35;
-  primitive.dimensions[2] = 0.9;
-
-  // Define a pose for the box (specified relative to frame_id)
-  geometry_msgs::Pose table_pose;
-  table_pose.position.x = 1.2;
-  table_pose.position.y = 0;
-  table_pose.position.z = 0.36;
-
-  mainTable.primitives.push_back(primitive);
-  mainTable.primitive_poses.push_back(table_pose);
-  mainTable.operation = mainTable.ADD;
-
-  collision_objects_vector.push_back(mainTable);
-
-  // Now, let's add the collision object into the world
-  ROS_INFO_NAMED("tutorial", "Add an object into the world");
-  ros::Duration(0.5).sleep();
-  planning_scene_interface.addCollisionObjects(collision_objects_vector);
-
   // Generic subscribe to RoboSherlock_USER/result_advertiser
-  ros::Subscriber sub = n.subscribe<robosherlock_msgs::RSObjectDescriptions> (std::string("RoboSherlock_") + std::string(getenv("USER"))+"/result_advertiser", 1000, boost::bind(Callback,_1,boost::ref(planning_scene_interface), boost::ref(collision_objects_vector)));
+  ros::Subscriber sub = n.subscribe/*<robosherlock_msgs::RSObjectDescriptions>*/ (std::string("RoboSherlock_") + std::string(getenv("USER"))+"/result_advertiser", 1000, /*boost::bind(*/Callback/*,_1,boost::ref(planning_scene_interface), boost::ref(collision_objects_vector))*/);
   
   // Susbscribe to topic given by Rviz when "Publish Point" tool is used on an object
   ros::Subscriber click_sub = n.subscribe("/clicked_point", 1000, clickCallback);
 
   // Give Rviz marker to show the object as colored boxes
-  ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+  ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker[]>("visualization_marker", 10);
   pub = &marker_pub;
 
   // Publish name of the clicked object in rviz to topic /clicked_object
