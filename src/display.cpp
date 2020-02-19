@@ -174,7 +174,7 @@ void clickCallback(const geometry_msgs::PointStamped& msg)
 
   // Publish pose of the clicked object
   geometry_msgs::Pose pose;
-  pose.position.x = obj_pose.position.x; 
+  pose.position.x = obj_pose.position.x;
   pose.position.y = obj_pose.position.y;
   pose.position.z = obj_pose.position.z;
   pose.orientation.x = obj_pose.orientation.x;
@@ -183,7 +183,7 @@ void clickCallback(const geometry_msgs::PointStamped& msg)
   pose.orientation.w = obj_pose.orientation.w;
   click_pose_pub->publish(pose);
 
-  
+
   #ifdef DEBUG_PRINT
   std::cout << "***** Name of clicked object is [" << name << "]" << std::endl;
 
@@ -197,7 +197,7 @@ void clickCallback(const geometry_msgs::PointStamped& msg)
   std::cout << "Y :" << pose.orientation.y << std::endl;
   std::cout << "Z :" << pose.orientation.z << std::endl;
   std::cout << "W :" << pose.orientation.w << std::endl;
-  std::cout << "---------------------" << std::endl;  
+  std::cout << "---------------------" << std::endl;
   #endif
 }
 
@@ -208,21 +208,18 @@ int main(int argc, char *argv[])
   ros::init(argc, argv, "rs_display");
   ros::NodeHandle n;
 
-  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-  std::vector<moveit_msgs::CollisionObject> collision_objects_vector;
-
   OntologiesManipulator ontos(&n);
-  ontos.add("robot"); 
+  ontos.add("robot");
   onto_ = ontos.get("robot");
 
   // Generic subscribe to RoboSherlock_USER/result_advertiser
-  ros::Subscriber sub = n.subscribe/*<robosherlock_msgs::RSObjectDescriptions>*/ (std::string("RoboSherlock_") + std::string(getenv("USER"))+"/result_advertiser", 1000, /*boost::bind(*/Callback/*,_1,boost::ref(planning_scene_interface), boost::ref(collision_objects_vector))*/);
-  
+  ros::Subscriber sub = n.subscribe(std::string("RoboSherlock_") + std::string(getenv("USER"))+"/result_advertiser", 1000, Callback);
+
   // Susbscribe to topic given by Rviz when "Publish Point" tool is used on an object
   ros::Subscriber click_sub = n.subscribe("/clicked_point", 1000, clickCallback);
 
   // Give Rviz marker to show the object as colored boxes
-  ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker[]>("visualization_marker", 10);
+  ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
   pub = &marker_pub;
 
   // Publish name of the clicked object in rviz to topic /clicked_object
