@@ -6,10 +6,21 @@
 
 #include <robosherlock_msgs/RSObjectDescriptions.h>
 
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseStamped.h>
+
+
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <geometry_msgs/PointStamped.h>
-#include <geometry_msgs/Pose.h>
+#include <uwds3_msgs/WorldStamped.h>
+#include <uwds3_msgs/World.h>
+#include <uwds3_msgs/SceneNode.h>
+
 #include <std_msgs/String.h>
 
 #include "rs_display/PropertyData.h"
@@ -96,12 +107,25 @@ std::vector<rs::Object> merge(std::vector<rs::Object>& current, std::vector<rs::
   return std::move(res);
 }
 
-void Callback(const robosherlock_msgs::RSObjectDescriptionsConstPtr& msg)
+void Callback(const robosherlock_msgs::RSObjectDescriptionsConstPtr& msg, ros::Publisher world_publisher)
 {
+
   rs::DataReader reader;
 
+  tf2_ros::Buffer tfBuffer;
+  tf2_ros::TransformListener tfListener(tfBuffer);
+
+  uwds3_msgs::WorldStamped robWorld_stamped;
+  uwds3_msgs::World robWorld;
+
+  geometry_msgs::TransformStamped mainTransform;
+  geometry_msgs::PoseStamped poseIntoMap;
+  geometry_msgs::PoseStamped poseIntoBaseFootprint;
+
   std::cout << msg->obj_descriptions.size() << std::endl;
+
   std::vector<rs::PropertyData> datas;
+
   for(auto obj : msg->obj_descriptions)
     datas.push_back(reader.get(obj));
 
@@ -127,9 +151,82 @@ void Callback(const robosherlock_msgs::RSObjectDescriptionsConstPtr& msg)
   {
     obj.setId();
     obj.upadteInOntology(onto_);
-    pub->publish(obj.getMarker());
-    pub->publish(obj.getMarkerName());
+    
+    // Create scene node from objects and add them to the world
+    uwds3_msgs::SceneNode tmp_scene;
+    visualization_msgs::Marker marker;
+ 
+    tmp_scene.id = std::to_string(obj.getId());
+    tmp_scene.label = obj.getName();
+
+    ROS_ERROR_STREAM("ID :" << tmp_scene.id);
+
+    tmp_scene.type = tmp_scene.OBJECT;
+    tmp_scene.is_perceived = true;
+    tmp_scene.is_located = true;
+
+
+    marker = obj.getMarker();
+    
+    // pose
+    //tmp_scene.pose_stamped.pose.pose = marker.pose;
+    //tmp_scene.pose_stamped.header = marker.header;
+
+    poseIntoBaseFootprint.pose = marker.pose;
+    poseIntoBaseFootprint.header = marker.header;
+
+    try
+    {
+    mainTransform = tfBuffer.lookupTransform("map","base_footprint",ros::Time(0),ros::Duration(5.0));
+    }
+    catch (tf2::TransformException &ex)
+    {
+    ROS_WARN("%s",ex.what());
+    return;
+    }
+
+    tf2::doTransform(poseIntoBaseFootprint,poseIntoMap,mainTransform);
+
+    tmp_scene.pose_stamped.pose.pose = poseIntoMap.pose;
+    tmp_scene.pose_stamped.header = poseIntoMap.header;
+
+    // shape
+    tmp_scene.has_shape = true;
+    tmp_scene.shapes.resize(1);
+    if(marker.type == visualization_msgs::Marker::CUBE)
+    {
+      
+      tmp_scene.shapes[0].type = tmp_scene.shapes[0].BOX;
+      tmp_scene.shapes[0].dimensions.resize(3);  
+      tmp_scene.shapes[0].dimensions[0]= marker.scale.x; 
+      tmp_scene.shapes[0].dimensions[1]= marker.scale.y; 
+      tmp_scene.shapes[0].dimensions[2]= marker.scale.z; 
+    }
+    else if (marker.type == visualization_msgs::Marker::CYLINDER)
+    {
+      tmp_scene.shapes[0].type = tmp_scene.shapes[0].CYLINDER;
+      tmp_scene.shapes[0].dimensions.resize(2);
+      tmp_scene.shapes[0].dimensions[0]= marker.scale.x; 
+      tmp_scene.shapes[0].dimensions[1]= marker.scale.y; 
+    }
+
+    tmp_scene.shapes[0].color.r = marker.color.r;
+    tmp_scene.shapes[0].color.g = marker.color.g;
+    tmp_scene.shapes[0].color.b = marker.color.b;
+    tmp_scene.shapes[0].color.a = marker.color.a;
+    tmp_scene.shapes[0].name = obj.getName();
+
+
+    robWorld.scene.push_back(tmp_scene);
+    //pub->publish(marker);
+    //pub->publish(obj.getMarkerName());
   }
+
+  // Publish the world 
+  robWorld_stamped.world = robWorld;
+  robWorld_stamped.header.stamp = ros::Time::now();
+  robWorld_stamped.header.frame_id = "map";
+  world_publisher.publish(robWorld_stamped);
 
   mut_.lock();
   objects_ = std::move(objects);
@@ -212,8 +309,10 @@ int main(int argc, char *argv[])
   ontos.add("robot");
   onto_ = ontos.get("robot");
 
+  ros::Publisher world_pub = n.advertise<uwds3_msgs::WorldStamped>("ar_tracks", 1);
+
   // Generic subscribe to RoboSherlock_USER/result_advertiser
-  ros::Subscriber sub = n.subscribe(std::string("RoboSherlock_") + std::string(getenv("USER"))+"/result_advertiser", 1000, Callback);
+  ros::Subscriber sub = n.subscribe<robosherlock_msgs::RSObjectDescriptions>(std::string("RoboSherlock_") + std::string(getenv("USER"))+"/result_advertiser", 1000, boost::bind(&Callback, _1, world_pub));
 
   // Susbscribe to topic given by Rviz when "Publish Point" tool is used on an object
   ros::Subscriber click_sub = n.subscribe("/clicked_point", 1000, clickCallback);
